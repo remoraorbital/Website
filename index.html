@@ -248,6 +248,9 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .co-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .co-kids{min-width:0}
 .co-kids:empty{display:none}
+.co-main.has-kids > .blk-text:empty:not(:focus){flex:0 0 0;height:0;min-height:0;padding:0;opacity:0;overflow:hidden}
+.co-main.has-kids > .blk-text:empty:not(:focus)::before{content:""}
+.drop-line.box{background:var(--accent-soft);border:2px solid var(--accent);border-radius:9px}
 .co-kids .blk-gutter{left:calc(var(--indent,0) * 26px - 24px)}
 .co-kids .blk-add{display:none}
 .co-kids .blk::before{left:-26px;width:26px}
@@ -1118,7 +1121,7 @@ const EDITOR_PROTO={
           :(ro?null:h('button',{class:'mk-callout empty',tabindex:'-1',title:'Add an icon',onclick:pick},ic('smile'))))}
       const t=h('div',{class:'blk-text',contenteditable:ro?'false':(b.type==='code'&&PTO?'plaintext-only':'true'),spellcheck:b.type==='code'?'false':'true','data-ph':PH[b.type]||'',role:'textbox','aria-multiline':'true'});
       if(b.type==='code'){t.textContent=b.text||'';if((b.text||'').endsWith('\n'))t.append(document.createElement('br'))}else t.innerHTML=sanitize(b.text||'');
-      if(b.type==='callout'){const kids=h('div',{class:'co-kids'});body.append(h('div',{class:'co-main'},t,kids));if(Array.isArray(b.kids)&&b.kids.length)this.fill(kids,b.kids)}
+      if(b.type==='callout'){const kids=h('div',{class:'co-kids'});const hasKids=Array.isArray(b.kids)&&b.kids.length>0;body.append(h('div',{class:'co-main'+(hasKids?' has-kids':'')},t,kids));if(Array.isArray(b.kids)&&b.kids.length)this.fill(kids,b.kids)}
       else body.append(t)}
     el.append(body);return el},
   colsEl(b){const row=h('div',{class:'cols'});const ro=S.readOnly;
@@ -1265,9 +1268,14 @@ const EDITOR_PROTO={
     e.preventDefault();const r=blk.getBoundingClientRect();let zone=e.clientY>r.top+r.height/2?'after':'before';
     const edge=Math.min(72,r.width*.22);const sideOK=db.type!=='columns'&&tb.type!=='columns'&&!(L.parent&&(L.parent.callout||L.parent.block.cols.length>=6));
     if(sideOK&&e.clientX<r.left+edge)zone='left';else if(sideOK&&e.clientX>r.right-edge)zone='right';
-    this.dropT={id:blk.dataset.id,zone};this.showDrop(r,zone)},
+    else if(tb.type==='callout'&&db.type!=='columns'){const band=Math.min(12,r.height*.2);
+      if(e.clientY>r.top+band&&e.clientY<r.bottom-band){const first=blk.querySelector(':scope > .blk-body > .co-main > .co-kids > .blk');
+        zone=(first&&e.clientY<first.getBoundingClientRect().top)?'inside-start':'inside'}}
+    this.dropT={id:blk.dataset.id,zone};this.showDrop(zone.startsWith('inside')?blk.querySelector(':scope > .blk-body').getBoundingClientRect():r,zone)},
   showDrop(r,zone){if(!this.line)this.line=h('div',{class:'drop-line'});if(!this.line.isConnected)$('#layer').append(this.line);const s=this.line.style;
-    if(zone==='left'||zone==='right'){s.left=((zone==='left'?r.left:r.right)-2)+'px';s.top=r.top+'px';s.width='3px';s.height=Math.max(20,r.height)+'px'}
+    this.line.classList.toggle('box',zone.startsWith('inside'));
+    if(zone.startsWith('inside')){s.left=r.left+'px';s.top=r.top+'px';s.width=r.width+'px';s.height=r.height+'px'}
+    else if(zone==='left'||zone==='right'){s.left=((zone==='left'?r.left:r.right)-2)+'px';s.top=r.top+'px';s.width='3px';s.height=Math.max(20,r.height)+'px'}
     else{s.left=r.left+'px';s.top=((zone==='after'?r.bottom:r.top)-1)+'px';s.width=r.width+'px';s.height='3px'}},
   hideDrop(){if(this.line)this.line.remove();this.dropT=null},
   drop(e){if(!this.dragId)return;e.preventDefault();const d=this.dropT;const id=this.dragId;this.dragEnd();if(d)this.move(id,d.id,d.zone)},
@@ -1276,10 +1284,13 @@ const EDITOR_PROTO={
     const A=this.loc(id),T0=this.loc(targetId);if(!A||!T0)return;
     const end=this.groupEnd(A.i,A.list);const grp=A.list.slice(A.i,end);
     if(grp.some(g=>g.id===targetId||((g.type==='columns'||g.type==='callout')&&JSON.stringify(g).includes('"'+targetId+'"'))))return;
-    const side=zone==='left'||zone==='right';
+    const side=zone==='left'||zone==='right',inside=zone==='inside'||zone==='inside-start';
+    if(inside&&(T0.b.type!=='callout'||grp[0].type==='columns'))return;
     if(grp[0].type==='columns'&&T0.parent)return;if(side&&(T0.b.type==='columns'||(T0.parent&&T0.parent.callout)))return;
     A.list.splice(A.i,end-A.i);
     const T=this.loc(targetId);
+    if(inside){const base=grp[0].indent||0;grp.forEach(g=>g.indent=Math.max(0,(g.indent||0)-base));
+      if(!Array.isArray(T.b.kids))T.b.kids=[];if(zone==='inside-start')T.b.kids.unshift(...grp);else T.b.kids.push(...grp);this.save(0);this.render();return}
     if(!side){let ti=T.i;if(zone==='after')ti=this.groupEnd(ti,T.list);const delta=(T.b.indent||0)-(grp[0].indent||0);
       grp.forEach(g=>g.indent=Math.max(0,(g.indent||0)+delta));T.list.splice(ti,0,...grp)}
     else{const base=grp[0].indent||0;grp.forEach(g=>g.indent=Math.max(0,(g.indent||0)-base));
