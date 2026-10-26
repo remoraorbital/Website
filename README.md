@@ -2,44 +2,51 @@
 
 A shared, Notion-style workspace for the founders: nested pages, a block editor with `/` commands, columns, databases (table, board, list) with filters, in-page databases and a side peek.
 
-It is a static website hosted on **GitHub Pages**. Data is stored in **Cloud Firestore** and people sign in with **Google**, both through a free Firebase project.
+It is a static website hosted on **GitHub Pages**. Data is stored in **Cloud Firestore**. Access is behind a single shared login, like a device passcode: one username and password for the workspace, with password resets sent to `info@remoraorbital.co.uk`.
 
 ## Files
 
 | File | What it is |
 | --- | --- |
 | `index.html` | The whole app |
-| `firebase-adapter.js` | Connects the app to Firebase sign-in and Firestore |
-| `firebase-config.js` | **Your settings**: Firebase keys and the allowed emails |
+| `firebase-adapter.js` | The login page, plus the connection to Firebase |
+| `firebase-config.js` | **Your settings**: Firebase keys and the login username/email |
 | `firestore.rules` | Security rules to paste into Firebase |
 | `.nojekyll` | Tells GitHub Pages to serve the files as they are |
+
+## How the login works
+- The login page asks for the username (`Remora Orbital`) and the password.
+- Behind the scenes it signs in to one Firebase account, `info@remoraorbital.co.uk`. Firebase checks the password on its servers. The password is **not** in this repository, which is public.
+- The Firestore rules only let that one login read or write data, so nobody can reach the data by reading or changing this code.
+- **Forgot the password?** sends Firebase's reset email to `info@remoraorbital.co.uk`. Open the link, choose a new password, and use it on the login page.
+- **Keep this device signed in** works like a device passcode: the device stays unlocked until someone picks **Sign out** in the workspace menu (top of the sidebar). Untick it to sign out when the browser closes.
 
 ## One-time setup
 
 ### 1. Create the Firebase project
 1. Go to <https://console.firebase.google.com> and click **Create a project** (Google Analytics is not needed).
-2. **Build → Authentication → Get started → Sign-in method → Google → Enable**, choose a support email, then **Save**.
-3. **Build → Firestore Database → Create database**. Choose a location close to you (for London, `europe-west2`), and start in **production mode**.
-4. **Firestore Database → Rules**: replace everything with the contents of `firestore.rules`, put your two Google emails in the list, then **Publish**. Edit the emails in the Firebase console only; don't commit them to this public repository.
-5. **Project settings (gear icon) → General → Your apps → Web (`</>`)**. Register an app (no Firebase Hosting needed) and copy the `firebaseConfig` values.
+2. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable** (leave "Email link" off), then **Save**.
+3. **Authentication → Users → Add user**. Email: `info@remoraorbital.co.uk`. Password: the workspace password. This is the only place the password is stored.
+4. **Authentication → Settings → User actions**: untick **Enable create (sign-up)** and **Enable delete**, then **Save**. That stops anyone creating extra accounts.
+5. **Build → Firestore Database → Create database**. Choose a location (for London, `europe-west2`) and start in **production mode**.
+6. **Firestore Database → Rules**: replace everything with the contents of `firestore.rules`, then **Publish**.
+7. **Project settings (gear icon) → General → Your apps → Web (`</>`)**. Register an app (no Firebase Hosting needed) and copy the `firebaseConfig` values.
 
 ### 2. Fill in `firebase-config.js`
-Paste the values from step 5 into `RW_FIREBASE_CONFIG` and commit the change. Leave `RW_ALLOWED_EMAILS` empty unless you don't mind the emails being public.
-
-These keys are safe to publish. What protects your data is the email list in the Firestore rules.
+Paste the values from step 7 into `RW_FIREBASE_CONFIG` and commit. The keys are safe to publish. Never add the password to this file.
 
 ### 3. Turn on GitHub Pages
 Repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**, branch `main`, folder `/ (root)`, then **Save**. After a minute the site is live at:
 
 `https://remoraorbital.github.io/Website/`
 
-### 4. Allow that address to sign in
-Firebase console → **Authentication → Settings → Authorised domains → Add domain** → `remoraorbital.github.io`.
+### 4. Allow that address in Firebase
+Firebase console → **Authentication → Settings → Authorised domains → Add domain** → `remoraorbital.github.io`. Once that's added, the reset email's "continue" link brings people back to the workspace.
 
-Open the site, click **Sign in with Google**, and you're in. Your co-founder does the same with their account.
+Open the site and sign in with `Remora Orbital` and the password.
 
-## Adding or removing people
-Edit the email list in the Firestore rules in the Firebase console, then **Publish**. Anyone else who signs in sees a "No access" screen.
+## Changing the password
+Use **Forgot the password? Send a reset email** on the login page, or Firebase console → Authentication → Users → ⋮ next to the account → **Reset password**.
 
 ## Costs
 The Firebase free plan (Spark) needs no card and includes 50,000 document reads and 20,000 writes a day. Two people typing notes all day stay far below that.

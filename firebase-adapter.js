@@ -3,8 +3,12 @@
  *
  * The workspace app was written against a small storage + identity interface
  * (window.claude.use("db" | "user" | "downloads")). This file provides that
- * interface on top of Firebase Authentication (Google sign-in) and Cloud
- * Firestore, so the same app runs as a normal website on GitHub Pages.
+ * interface on top of Firebase Authentication and Cloud Firestore, so the same
+ * app runs as a normal website on GitHub Pages.
+ *
+ * Sign-in is a single shared login (one username and password for the whole
+ * workspace). The username is mapped to one Firebase email/password account,
+ * so the password is checked by Firebase and never stored in this public code.
  *
  * You should not need to edit this file. Put your settings in firebase-config.js.
  */
@@ -13,67 +17,134 @@
   window.RW_ENV = 'github';
 
   var cfg = window.RW_FIREBASE_CONFIG || {};
-  var allowed = (window.RW_ALLOWED_EMAILS || []).map(function (e) { return String(e).trim().toLowerCase(); }).filter(Boolean);
-  var configured = !!(cfg.apiKey && cfg.projectId && !/YOUR_|PASTE_/i.test(cfg.apiKey + cfg.projectId));
+  var login = window.RW_LOGIN || {};
+  var configured = !!(cfg.apiKey && cfg.projectId && login.email && !/YOUR_|PASTE_/i.test(cfg.apiKey + cfg.projectId));
+  var wsName = cfg.workspaceName || 'Remora Orbital';
 
-  /* ---------- sign-in screen ---------- */
-  var gate = null;
+  /* ---------- small DOM helper ---------- */
   function el(tag, attrs, kids) {
     var n = document.createElement(tag);
-    if (attrs) for (var k in attrs) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'onclick') n.addEventListener('click', attrs[k]); else n.setAttribute(k, attrs[k]); }
+    if (attrs) for (var k in attrs) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === 'text') n.textContent = v;
+      else if (k.slice(0, 2) === 'on' && typeof v === 'function') n.addEventListener(k.slice(2), v);
+      else if (v === true) n.setAttribute(k, '');
+      else n.setAttribute(k, v);
+    }
     (kids || []).forEach(function (c) { if (c) n.append(c); });
     return n;
   }
-  function showGate(title, body, buttons) {
-    if (!gate) {
-      gate = el('div', { class: 'rw-gate', role: 'dialog', 'aria-modal': 'true' });
-      var css = document.createElement('style');
-      css.textContent =
-        '.rw-gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:var(--bg,#FBFCFE);color:var(--ink,#161A22);font-family:var(--f-ui,system-ui,sans-serif)}' +
-        '.rw-card{width:min(420px,100%);display:grid;gap:14px;justify-items:start}' +
-        '.rw-mark{position:relative;width:34px;height:34px;border-radius:50%;border:2.5px solid var(--ink,#161A22)}' +
-        '.rw-mark::after{content:"";position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent,#2A55E5);top:-4px;right:-4px}' +
-        '.rw-card h1{margin:6px 0 0;font:750 1.9rem/1.1 var(--f-display,system-ui,sans-serif);letter-spacing:-.025em}' +
-        '.rw-card p{margin:0;color:var(--ink-2,#465063);font-size:15px;line-height:1.5}' +
-        '.rw-card code{font-family:var(--f-mono,monospace);font-size:13px;background:var(--code-bg,#F0F2F6);padding:1px 5px;border-radius:4px}' +
-        '.rw-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}' +
-        '.rw-btn{height:40px;padding:0 16px;border-radius:9px;border:1px solid var(--line,#E0E5ED);background:var(--panel,#fff);color:var(--ink,#161A22);font:600 14px var(--f-ui,system-ui,sans-serif);cursor:pointer}' +
-        '.rw-btn.primary{background:var(--accent,#2A55E5);color:var(--accent-ink,#fff);border-color:transparent}' +
-        '.rw-err{color:var(--danger,#BE3A2F);font-size:13px}';
-      document.head.append(css);
-      document.body.append(gate);
-    }
-    gate.hidden = false;
-    gate.replaceChildren(el('div', { class: 'rw-card' }, [el('div', { class: 'rw-mark' }), el('h1', { text: title })].concat(body).concat([el('div', { class: 'rw-row' }, buttons)])));
+
+  /* ---------- login screen ---------- */
+  var gate = null;
+  function ensureGate() {
+    if (gate) return;
+    var css = document.createElement('style');
+    css.textContent =
+      '.rw-gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;overflow:auto;padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px));background:var(--bg,#FBFCFE);color:var(--ink,#161A22);font-family:var(--f-ui,system-ui,sans-serif)}' +
+      '.rw-card{width:min(400px,100%);display:grid;gap:16px}' +
+      '.rw-mark{position:relative;width:34px;height:34px;border-radius:50%;border:2.5px solid var(--ink,#161A22)}' +
+      '.rw-mark::after{content:"";position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent,#2A55E5);top:-4px;right:-4px;box-shadow:0 0 0 3px var(--bg,#FBFCFE)}' +
+      '.rw-card h1{margin:4px 0 0;font:750 1.85rem/1.1 var(--f-display,system-ui,sans-serif);letter-spacing:-.025em}' +
+      '.rw-card p{margin:0;color:var(--ink-2,#465063);font-size:15px;line-height:1.5}' +
+      '.rw-form{display:grid;gap:14px;margin-top:4px}' +
+      '.rw-field{display:grid;gap:6px}' +
+      '.rw-field label{font-size:13px;font-weight:600;color:var(--ink-2,#465063)}' +
+      '.rw-input{width:100%;height:42px;padding:0 12px;border:1px solid var(--line,#E0E5ED);border-radius:9px;background:var(--panel,#fff);color:var(--ink,#161A22);font:15px var(--f-ui,system-ui,sans-serif);outline:none}' +
+      '.rw-input:focus{border-color:var(--accent,#2A55E5);box-shadow:0 0 0 3px var(--accent-soft,rgba(42,85,229,.12))}' +
+      '.rw-pass{position:relative}.rw-pass .rw-input{padding-right:64px}' +
+      '.rw-eye{position:absolute;right:6px;top:6px;height:30px;padding:0 9px;border:0;border-radius:6px;background:none;color:var(--ink-2,#465063);font:600 12px var(--f-ui,system-ui,sans-serif);cursor:pointer}' +
+      '.rw-eye:hover{background:var(--hover,rgba(38,52,86,.06))}' +
+      '.rw-check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2,#465063);cursor:pointer}' +
+      '.rw-check input{width:16px;height:16px;margin:0;accent-color:var(--accent,#2A55E5)}' +
+      '.rw-btn{height:42px;padding:0 16px;border-radius:9px;border:1px solid var(--line,#E0E5ED);background:var(--panel,#fff);color:var(--ink,#161A22);font:600 14px var(--f-ui,system-ui,sans-serif);cursor:pointer}' +
+      '.rw-btn.primary{background:var(--accent,#2A55E5);color:var(--accent-ink,#fff);border-color:transparent}' +
+      '.rw-btn:disabled{opacity:.6;cursor:default}' +
+      '.rw-link{justify-self:start;border:0;background:none;padding:2px 0;color:var(--accent,#2A55E5);font:600 14px var(--f-ui,system-ui,sans-serif);cursor:pointer;text-decoration:underline;text-underline-offset:3px}' +
+      '.rw-msg{font-size:14px;line-height:1.45;padding:10px 12px;border-radius:9px}' +
+      '.rw-msg.err{background:var(--danger-soft,rgba(190,58,47,.09));color:var(--danger,#BE3A2F)}' +
+      '.rw-msg.ok{background:var(--accent-soft,rgba(42,85,229,.10));color:var(--ink,#161A22)}' +
+      '.rw-msg:empty{display:none}' +
+      '.rw-foot{font-size:12.5px;color:var(--ink-3,#7F889A)}';
+    document.head.append(css);
+    gate = el('div', { class: 'rw-gate', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Sign in' });
+    document.body.append(gate);
   }
+  function showCard(kids) { ensureGate(); gate.hidden = false; gate.replaceChildren(el('div', { class: 'rw-card' }, [el('div', { class: 'rw-mark' })].concat(kids))); }
   function hideGate() { if (gate) gate.hidden = true; }
 
   /* ---------- not configured yet ---------- */
   if (!configured || !window.firebase) {
-    var noop = function () { return Promise.resolve(null); };
-    window.claude = { use: noop };
-    var whenReady = function () {
-      showGate('Almost there', [
-        el('p', { text: window.firebase ? 'Firebase is not set up yet. Fill in firebase-config.js with your Firebase project settings, then reload.' : 'The Firebase scripts could not load. Check your internet connection, then reload.' })
-      ], [el('button', { class: 'rw-btn', text: 'Reload', onclick: function () { location.reload(); } })]);
+    window.claude = { use: function () { return Promise.resolve(null); } };
+    var notReady = function () {
+      showCard([el('h1', { text: 'Almost there' }), el('p', { text: window.firebase
+        ? 'Firebase is not set up yet. Fill in firebase-config.js with your Firebase project settings, then reload.'
+        : 'The sign-in service could not load. Check your internet connection, then reload.' }),
+        el('button', { class: 'rw-btn', text: 'Reload', onclick: function () { location.reload(); } })]);
     };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', whenReady); else whenReady();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', notReady); else notReady();
     return;
   }
 
   firebase.initializeApp(cfg);
   var auth = firebase.auth();
   var fs = firebase.firestore();
-  var provider = new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
+  var expectedUser = String(login.username || wsName).trim().toLowerCase().replace(/\s+/g, ' ');
 
-  function signIn(errBox) {
-    auth.signInWithPopup(provider).catch(function (e) {
-      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) return auth.signInWithRedirect(provider);
-      if (e && e.code === 'auth/unauthorized-domain') { errBox.textContent = 'This website address is not on Firebase’s list of authorised domains yet. Add it under Authentication → Settings → Authorised domains.'; return; }
-      if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') errBox.textContent = 'Sign-in did not work: ' + (e.message || e.code);
-    });
+  function friendly(e) {
+    var c = e && e.code;
+    if (c === 'auth/invalid-credential' || c === 'auth/wrong-password' || c === 'auth/user-not-found' || c === 'auth/invalid-email' || c === 'auth/invalid-login-credentials')
+      return 'That username or password is not right.';
+    if (c === 'auth/too-many-requests') return 'Too many attempts. Wait a few minutes, or send a password reset email.';
+    if (c === 'auth/network-request-failed') return 'No connection. Check your internet and try again.';
+    if (c === 'auth/user-disabled') return 'This login has been switched off in Firebase.';
+    if (c === 'auth/operation-not-allowed') return 'Email/password sign-in is not switched on in Firebase yet.';
+    return 'Sign-in did not work (' + (c || 'unknown error') + ').';
   }
+
+  function renderLogin(note) {
+    var msg = el('div', { class: 'rw-msg' + (note ? ' ok' : ''), role: 'status', 'aria-live': 'polite', text: note || '' });
+    var user = el('input', { class: 'rw-input', id: 'rw-user', name: 'username', autocomplete: 'username', autocapitalize: 'words', spellcheck: 'false', required: true });
+    var pass = el('input', { class: 'rw-input', id: 'rw-pass', name: 'password', type: 'password', autocomplete: 'current-password', required: true });
+    var eye = el('button', { class: 'rw-eye', type: 'button', text: 'Show', 'aria-label': 'Show password', onclick: function () {
+      var shown = pass.type === 'text'; pass.type = shown ? 'password' : 'text'; eye.textContent = shown ? 'Show' : 'Hide'; eye.setAttribute('aria-label', shown ? 'Show password' : 'Hide password'); pass.focus();
+    } });
+    var keep = el('input', { type: 'checkbox', id: 'rw-keep', checked: true });
+    var go = el('button', { class: 'rw-btn primary', type: 'submit', text: 'Sign in' });
+    var form = el('form', { class: 'rw-form', novalidate: true, onsubmit: function (e) {
+      e.preventDefault(); msg.className = 'rw-msg'; msg.textContent = '';
+      var u = user.value.trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!u || !pass.value) { msg.className = 'rw-msg err'; msg.textContent = 'Enter the username and password.'; return; }
+      if (u !== expectedUser) { msg.className = 'rw-msg err'; msg.textContent = 'That username or password is not right.'; return; }
+      go.disabled = true; go.textContent = 'Signing in…';
+      var mode = keep.checked ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION;
+      auth.setPersistence(mode).then(function () { return auth.signInWithEmailAndPassword(login.email, pass.value); })
+        .catch(function (err) { go.disabled = false; go.textContent = 'Sign in'; msg.className = 'rw-msg err'; msg.textContent = friendly(err); pass.select(); });
+    } }, [
+      el('div', { class: 'rw-field' }, [el('label', { for: 'rw-user', text: 'Username' }), user]),
+      el('div', { class: 'rw-field' }, [el('label', { for: 'rw-pass', text: 'Password' }), el('div', { class: 'rw-pass' }, [pass, eye])]),
+      el('label', { class: 'rw-check', for: 'rw-keep' }, [keep, document.createTextNode('Keep this device signed in')]),
+      msg, go
+    ]);
+    var reset = el('button', { class: 'rw-link', type: 'button', text: 'Forgot the password? Send a reset email', onclick: function () {
+      reset.disabled = true; msg.className = 'rw-msg'; msg.textContent = '';
+      var settings = { url: location.origin + location.pathname, handleCodeInApp: false };
+      auth.sendPasswordResetEmail(login.email, settings).catch(function (err) {
+        if (err && err.code === 'auth/unauthorized-continue-uri') return auth.sendPasswordResetEmail(login.email);
+        throw err;
+      }).then(function () {
+        msg.className = 'rw-msg ok'; msg.textContent = 'A password reset link was sent to ' + login.email + '. It can take a few minutes, and may land in spam.';
+      }, function (err) {
+        reset.disabled = false; msg.className = 'rw-msg err';
+        msg.textContent = err && err.code === 'auth/too-many-requests' ? 'Too many reset emails. Try again later.' : 'The reset email could not be sent (' + ((err && err.code) || 'unknown error') + ').';
+      });
+    } });
+    showCard([el('h1', { text: wsName + ' Workspace' }), el('p', { text: 'This workspace is private. Sign in to continue.' }), form, reset,
+      el('div', { class: 'rw-foot', text: 'Reset emails go to ' + login.email + '.' })]);
+    setTimeout(function () { user.focus(); }, 30);
+  }
+
   window.RW_SIGN_OUT = function () { auth.signOut().then(function () { location.reload(); }); };
 
   /* ---------- people (members collection doubles as the profile directory) ---------- */
@@ -86,7 +157,7 @@
   }
   function profile(id) {
     var p = people[id] || {}, color = colorFor(id || 'x'), name = p.name || '';
-    return { id: id, name: name, avatarUrl: p.photo || initials(name || '?', color), color: color, email: p.email || null, isMe: !!(me && id === me.uid), guest: false };
+    return { id: id, name: name, avatarUrl: p.photo || initials(name || '?', color), color: color, email: null, isMe: !!(me && id === me.uid), guest: false };
   }
 
   /* ---------- Firestore wrapper with the interface the app expects ---------- */
@@ -126,11 +197,11 @@
 
   var userApi = {
     id: function () { return Promise.resolve(me ? me.uid : null); },
-    me: function () { return Promise.resolve(Object.assign(profile(me.uid), { name: me.displayName || (people[me.uid] || {}).name || '', email: me.email || null, isOwner: true, canEdit: true })); },
+    me: function () { return Promise.resolve(Object.assign(profile(me.uid), { name: '', email: null, isOwner: true, canEdit: true })); },
     isOwner: function () { return Promise.resolve(true); },
     canEdit: function () { return Promise.resolve(true); },
     can: function () { return Promise.resolve(null); },
-    name: function () { return Promise.resolve(me ? me.displayName || '' : ''); },
+    name: function () { return Promise.resolve(''); },
     profiles: function (ids) { return (peopleReady || Promise.resolve()).then(function () { var out = {}; [].concat(ids || []).forEach(function (id) { out[id] = profile(id); }); return out; }); },
     search: function (q) { q = String(q || '').toLowerCase(); return Promise.resolve(Object.keys(people).map(profile).filter(function (p) { return p.name && (!q || p.name.toLowerCase().indexOf(q) >= 0); }).slice(0, 8)); }
   };
@@ -146,36 +217,24 @@
     }
   };
 
-  /* ---------- auth flow: the app waits here until someone allowed has signed in ---------- */
+  /* ---------- auth flow: the app waits here until the shared login is signed in ---------- */
   var resolveAuthed, authed = new Promise(function (r) { resolveAuthed = r; });
   var started = false;
-  function renderSignIn() {
-    var err = el('p', { class: 'rw-err' });
-    showGate((cfg.workspaceName || 'Remora Orbital') + ' Workspace', [
-      el('p', { text: 'Sign in with the Google account that has access to this workspace.' }), err
-    ], [el('button', { class: 'rw-btn primary', text: 'Sign in with Google', onclick: function () { err.textContent = ''; signIn(err); } })]);
-  }
   function boot() {
-    auth.getRedirectResult().catch(function () {});
+    showCard([el('h1', { text: 'Opening the workspace…' })]);
     auth.onAuthStateChanged(function (u) {
       if (started && (!u || (me && u.uid !== me.uid))) { location.reload(); return; }
-      if (!u) { renderSignIn(); return; }
-      var email = String(u.email || '').toLowerCase();
-      if (allowed.length && allowed.indexOf(email) < 0) {
-        showGate('No access', [el('p', { text: 'The account ' + (u.email || 'you signed in with') + ' is not on this workspace’s access list.' })],
-          [el('button', { class: 'rw-btn', text: 'Use another account', onclick: function () { auth.signOut(); } })]);
-        return;
-      }
+      if (!u) { if (!gate || gate.hidden || !gate.querySelector('form')) renderLogin(); return; }
       me = u; started = true;
-      showGate('Opening the workspace…', [], []);
-      var memberWrite = fs.doc('members/' + u.uid).set({ name: u.displayName || u.email || '', photo: u.photoURL || '', email: u.email || '', lastSeen: Date.now() }, { merge: true });
+      showCard([el('h1', { text: 'Opening the workspace…' })]);
+      var memberWrite = fs.doc('members/' + u.uid).set({ name: wsName, photo: '', lastSeen: Date.now() }, { merge: true });
       peopleReady = new Promise(function (res) {
         fs.collection('members').onSnapshot(function (s) { s.docs.forEach(function (d) { people[d.id] = d.data(); }); res(); }, function () { res(); });
       });
       memberWrite.then(function () { hideGate(); resolveAuthed(); }, function (e) {
         if (e && e.code === 'permission-denied') {
-          showGate('No access', [el('p', { text: 'Firestore refused this account. Check that ' + (u.email || 'this email') + ' is listed in your Firestore security rules.' })],
-            [el('button', { class: 'rw-btn', text: 'Use another account', onclick: function () { auth.signOut(); } })]);
+          showCard([el('h1', { text: 'No access' }), el('p', { text: 'Signed in, but the Firestore rules do not allow this login. Check that firestore.rules has been published with ' + login.email + '.' }),
+            el('button', { class: 'rw-btn', text: 'Sign out', onclick: function () { auth.signOut(); } })]);
         } else { hideGate(); resolveAuthed(); }
       });
     });

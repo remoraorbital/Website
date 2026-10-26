@@ -1,38 +1,35 @@
 rules_version = '2';
 
 // Paste this into Firebase console → Firestore Database → Rules, then Publish.
-// Replace the two emails with the Google accounts of the founders (lowercase).
+// Only the shared workspace login (email/password account) can read or write.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isFounder() {
+    function isWorkspaceLogin() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'founder-one@example.com',
-          'founder-two@example.com'
-        ];
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.auth.token.email == 'info@remoraorbital.co.uk';
     }
 
     // Pages, databases and database rows
     match /pages/{pageId} {
-      allow read, write: if isFounder();
+      allow read, write: if isWorkspaceLogin();
     }
 
     // Workspace name
     match /meta/{docId} {
-      allow read, write: if isFounder();
+      allow read, write: if isWorkspaceLogin();
     }
 
-    // Who has signed in (names and photos for "edited by" and person fields)
+    // Sign-in record used for "edited by" labels
     match /members/{uid} {
-      allow read: if isFounder();
-      allow write: if isFounder() && request.auth.uid == uid;
+      allow read: if isWorkspaceLogin();
+      allow write: if isWorkspaceLogin() && request.auth.uid == uid;
     }
 
-    // Each person's private settings, such as favourites
+    // Per-login settings, such as favourites
     match /data/users/{uid}/{docId} {
-      allow read, write: if isFounder() && request.auth.uid == uid;
+      allow read, write: if isWorkspaceLogin() && request.auth.uid == uid;
     }
   }
 }
