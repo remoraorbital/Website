@@ -2,7 +2,7 @@
 
 A shared, Notion-style workspace for the founders: nested pages, a block editor with `/` commands, columns, databases (table, board, list) with filters, in-page databases and a side peek.
 
-It is a static website hosted on **GitHub Pages**. Data is stored in **Cloud Firestore**. Access is behind a single shared login, like a device passcode: one username and password for the workspace, with password resets sent to `info@remoraorbital.co.uk`.
+It is a static website hosted on **GitHub Pages** at `https://admin.remoraorbital.co.uk/`. Data is stored in **Cloud Firestore**. Access is behind a single shared login, like a device passcode: one username and password for the workspace, with password resets sent to `info@remoraorbital.co.uk`.
 
 ## Files
 
@@ -12,6 +12,7 @@ It is a static website hosted on **GitHub Pages**. Data is stored in **Cloud Fir
 | `firebase-adapter.js` | The login page, plus the connection to Firebase |
 | `firebase-config.js` | **Your settings**: Firebase keys and the login username/email |
 | `firestore.rules` | Security rules to paste into Firebase |
+| `CNAME` | The custom domain, `admin.remoraorbital.co.uk` |
 | `.nojekyll` | Tells GitHub Pages to serve the files as they are |
 
 ## How the login works
@@ -35,13 +36,16 @@ It is a static website hosted on **GitHub Pages**. Data is stored in **Cloud Fir
 ### 2. Fill in `firebase-config.js`
 Paste the values from step 7 into `RW_FIREBASE_CONFIG` and commit. The keys are safe to publish. Never add the password to this file.
 
-### 3. Turn on GitHub Pages
-Repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**, branch `main`, folder `/ (root)`, then **Save**. After a minute the site is live at:
+### 3. Turn on GitHub Pages and the custom domain
+1. Repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**, branch `main`, folder `/ (root)`, then **Save**.
+2. Under **Custom domain**, enter `admin.remoraorbital.co.uk` and **Save**. The `CNAME` file in this repo already holds it.
+3. In **Cloudflare → DNS → Records**, add a record: Type `CNAME`, Name `admin`, Target `remoraorbital.github.io`, Proxy status **DNS only** (grey cloud).
+4. Back in **Settings → Pages**, wait for the DNS check to pass, then tick **Enforce HTTPS**. The certificate can take up to 24 hours.
 
-`https://remoraorbital.github.io/Website/`
+The workspace is then at `https://admin.remoraorbital.co.uk/`.
 
 ### 4. Allow that address in Firebase
-Firebase console → **Authentication → Settings → Authorised domains → Add domain** → `remoraorbital.github.io`. Once that's added, the reset email's "continue" link brings people back to the workspace.
+Firebase console → **Authentication → Settings → Authorised domains → Add domain** → `admin.remoraorbital.co.uk`. Without it, the reset email's "continue" link can't bring people back to the workspace.
 
 Open the site and sign in with `Remora Orbital` and the password.
 
