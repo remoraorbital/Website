@@ -12,12 +12,12 @@
  *    lives only in Firebase (Authentication → Users).
  */
 window.RW_FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID",
+  apiKey: "AIzaSyAMm5iqWrSXauB03-B6fxkvwF5STkY0_-s",
+  authDomain: "website-a5247.firebaseapp.com",
+  projectId: "website-a5247",
+  storageBucket: "website-a5247.firebasestorage.app",
+  messagingSenderId: "142833479323",
+  appId: "1:142833479323:web:b4db2114bb94cdb20aa03e",
   workspaceName: "Remora Orbital"
 };
 
