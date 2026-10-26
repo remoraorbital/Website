@@ -95,7 +95,7 @@
   function friendly(e) {
     var c = e && e.code;
     if (c === 'auth/invalid-credential' || c === 'auth/wrong-password' || c === 'auth/user-not-found' || c === 'auth/invalid-email' || c === 'auth/invalid-login-credentials')
-      return 'That username or password is not right.';
+      return 'The password was not accepted.';
     if (c === 'auth/too-many-requests') return 'Too many attempts. Wait a few minutes, or send a password reset email.';
     if (c === 'auth/network-request-failed') return 'No connection. Check your internet and try again.';
     if (c === 'auth/user-disabled') return 'This login has been switched off in Firebase.';
@@ -116,11 +116,11 @@
       e.preventDefault(); msg.className = 'rw-msg'; msg.textContent = '';
       var u = user.value.trim().toLowerCase().replace(/\s+/g, ' ');
       if (!u || !pass.value) { msg.className = 'rw-msg err'; msg.textContent = 'Enter the username and password.'; return; }
-      if (u !== expectedUser) { msg.className = 'rw-msg err'; msg.textContent = 'That username or password is not right.'; return; }
+      if (u !== expectedUser) { msg.className = 'rw-msg err'; msg.textContent = 'That username isn’t recognised. Check the spelling and the space between the words.'; return; }
       go.disabled = true; go.textContent = 'Signing in…';
       var mode = keep.checked ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION;
       auth.setPersistence(mode).then(function () { return auth.signInWithEmailAndPassword(login.email, pass.value); })
-        .catch(function (err) { go.disabled = false; go.textContent = 'Sign in'; msg.className = 'rw-msg err'; msg.textContent = friendly(err); pass.select(); });
+        .catch(function (err) { go.disabled = false; go.textContent = 'Sign in'; msg.className = 'rw-msg err'; msg.textContent = friendly(err) + ' [' + ((err && err.code) || 'no code') + ']'; pass.select(); });
     } }, [
       el('div', { class: 'rw-field' }, [el('label', { for: 'rw-user', text: 'Username' }), user]),
       el('div', { class: 'rw-field' }, [el('label', { for: 'rw-pass', text: 'Password' }), el('div', { class: 'rw-pass' }, [pass, eye])]),
