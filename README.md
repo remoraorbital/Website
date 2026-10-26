@@ -39,7 +39,7 @@ Paste the values from step 7 into `RW_FIREBASE_CONFIG` and commit. The keys are 
 ### 3. Turn on GitHub Pages and the custom domain
 1. Repository **Settings → Pages → Build and deployment → Source: Deploy from a branch**, branch `main`, folder `/ (root)`, then **Save**.
 2. Under **Custom domain**, enter `admin.remoraorbital.co.uk` and **Save**. The `CNAME` file in this repo already holds it.
-3. In **Cloudflare → DNS → Records**, add a record: Type `CNAME`, Name `admin`, Target `remoraorbital.github.io`, Proxy status **DNS only** (grey cloud).
+3. Wherever the DNS for `remoraorbital.co.uk` is managed (usually the company the domain was bought from), add a record: Type `CNAME`, Name/Host `admin`, Value/Target `remoraorbital.github.io`. Leave the existing records alone, especially the MX records that deliver email to `info@remoraorbital.co.uk`. (If the domain is on Cloudflare, set Proxy status to **DNS only**.)
 4. Back in **Settings → Pages**, wait for the DNS check to pass, then tick **Enforce HTTPS**. The certificate can take up to 24 hours.
 
 The workspace is then at `https://admin.remoraorbital.co.uk/`.
