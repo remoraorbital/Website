@@ -4,7 +4,10 @@
  * 1. Paste your Firebase web app config below (Firebase console → Project settings →
  *    General → Your apps → Web app → "SDK setup and configuration" → Config).
  *    These values are safe to publish: access is controlled by the Firestore rules.
- * 2. List the Google accounts allowed to sign in. Use the same emails in firestore.rules.
+ * 2. Access is enforced by the email list in your Firestore rules (kept in the Firebase
+ *    console, not in this public repository). You can optionally repeat the emails below
+ *    to show a friendlier "no access" message sooner, but this file is public, so leaving
+ *    the list empty keeps your addresses private.
  */
 window.RW_FIREBASE_CONFIG = {
   apiKey: "PASTE_API_KEY",
@@ -16,7 +19,4 @@ window.RW_FIREBASE_CONFIG = {
   workspaceName: "Remora Orbital"
 };
 
-window.RW_ALLOWED_EMAILS = [
-  "founder-one@example.com",
-  "founder-two@example.com"
-];
+window.RW_ALLOWED_EMAILS = [];
