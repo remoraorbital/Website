@@ -25,6 +25,7 @@
   --f-ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-display:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --py-k:#FF7700; --py-b:#900090; --py-s:#00AA00; --py-c:#DD0000; --py-d:#0000FF;
   --side-w:268px; --gut:max(16px, env(safe-area-inset-left, 0px));
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
@@ -38,6 +39,7 @@
   --t-gray-bg:#2B2F37; --t-gray-fg:#B9BFCA; --t-brown-bg:#382D25; --t-brown-fg:#D6B497; --t-orange-bg:#422C1B; --t-orange-fg:#F2A467;
   --t-yellow-bg:#3C3518; --t-yellow-fg:#E6CC66; --t-green-bg:#1D3527; --t-green-fg:#7ED19A; --t-blue-bg:#1C2B46; --t-blue-fg:#8CB2F4;
   --t-purple-bg:#30264A; --t-purple-fg:#C2A5F1; --t-pink-bg:#41233A; --t-pink-fg:#EFA0C5; --t-red-bg:#44231F; --t-red-fg:#F4998F;
+  --py-k:#FF9B45; --py-b:#D98BE8; --py-s:#5FD35F; --py-c:#FF7070; --py-d:#86A8FF;
   color-scheme:dark; } }
 :root[data-theme="dark"]{
   --bg:#111419; --side:#161A21; --panel:#1B1F28; --ink:#E6E9EF; --ink-2:#A8B0BF; --ink-3:#6F7889;
@@ -50,6 +52,7 @@
   --t-gray-bg:#2B2F37; --t-gray-fg:#B9BFCA; --t-brown-bg:#382D25; --t-brown-fg:#D6B497; --t-orange-bg:#422C1B; --t-orange-fg:#F2A467;
   --t-yellow-bg:#3C3518; --t-yellow-fg:#E6CC66; --t-green-bg:#1D3527; --t-green-fg:#7ED19A; --t-blue-bg:#1C2B46; --t-blue-fg:#8CB2F4;
   --t-purple-bg:#30264A; --t-purple-fg:#C2A5F1; --t-pink-bg:#41233A; --t-pink-fg:#EFA0C5; --t-red-bg:#44231F; --t-red-fg:#F4998F;
+  --py-k:#FF9B45; --py-b:#D98BE8; --py-s:#5FD35F; --py-c:#FF7070; --py-d:#86A8FF;
   color-scheme:dark;
 }
 html{box-sizing:border-box;height:100%}
@@ -262,7 +265,11 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .blk:hover > .blk-body > .mk-callout.empty,.mk-callout.empty:focus-visible{opacity:1}
 @media (hover:none){.mk-callout.empty{opacity:.6}}
 .blk[data-type="code"] .blk-body{background:var(--code-bg);border-radius:9px;padding:12px 16px;margin:4px 0}
-.blk[data-type="code"] .blk-text{font:13.5px/1.65 var(--f-mono);tab-size:2;overflow-x:auto}
+.blk[data-type="code"] .blk-text{font:13.5px/1.65 var(--f-mono);tab-size:4;overflow-x:auto;color:var(--ink)}
+.blk[data-type="code"] > .blk-body{position:relative}
+.blk[data-type="code"] > .blk-body::after{content:"Python";position:absolute;top:6px;right:10px;font:500 10.5px/1 var(--f-mono);letter-spacing:.04em;color:var(--ink-3);pointer-events:none}
+.py-k{color:var(--py-k)}.py-b{color:var(--py-b)}.py-s{color:var(--py-s)}.py-c{color:var(--py-c)}.py-d{color:var(--py-d)}
+.blk-text u{text-decoration:underline;text-underline-offset:3px}
 .blk[data-type="divider"] .blk-body{padding:12px 2px}
 .blk hr{border:0;border-top:1px solid var(--line);width:100%;margin:0}
 .blk-link{display:flex;align-items:center;gap:8px;padding:5px 6px;margin:1px 0;border-radius:7px;font-weight:550;font-size:16px;width:100%}
@@ -727,7 +734,25 @@ function caretRect(){const sel=getSelection();if(!sel.rangeCount)return null;con
 function atEdge(t,dir){const off=caretOffset(t),len=t.textContent.length;const r=caretRect();if(!r)return dir==='up'?off===0:off>=len;
   const er=t.getBoundingClientRect();const lh=parseFloat(getComputedStyle(t).lineHeight)||22;
   return dir==='up'?(r.top-er.top<lh*0.85):(er.bottom-r.bottom<lh*0.85)}
-function codeText(el){let s='';const nodes=[...el.childNodes];nodes.forEach((n,i)=>{if(n.nodeType===3)s+=n.data;else if(n.nodeName==='BR'){if(i<nodes.length-1)s+='\n'}else{if(s&&!s.endsWith('\n'))s+='\n';s+=codeText(n)}});return s}
+function codeText(el){let s='';const nodes=[...el.childNodes];nodes.forEach((n,i)=>{if(n.nodeType===3)s+=n.data;else if(n.nodeName==='BR'){if(i<nodes.length-1)s+='\n'}else if(n.nodeName==='DIV'||n.nodeName==='P'){if(s&&!s.endsWith('\n'))s+='\n';s+=codeText(n)}else s+=codeText(n)});return s}
+/* Python syntax colouring, using IDLE's default colour roles */
+const PY_KW=new Set('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case'.split(' '));
+const PY_BI=new Set(('abs all any ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip __import__ '+
+  'Exception BaseException ValueError TypeError KeyError IndexError AttributeError NameError RuntimeError StopIteration ImportError ModuleNotFoundError OSError FileNotFoundError ZeroDivisionError NotImplementedError AssertionError').split(' '));
+function pyHighlight(src){
+  const re=/(#[^\n]*)|((?:[rRbBuUfF]{1,2})?(?:'''[\s\S]*?(?:'''|$)|"""[\s\S]*?(?:"""|$)|'(?:\\.|[^'\\\n])*'?|"(?:\\.|[^"\\\n])*"?))|([A-Za-z_][A-Za-z0-9_]*)/g;
+  let out='',last=0,m,prev='';
+  while((m=re.exec(src))){if(!m[0]){re.lastIndex++;continue}out+=esc(src.slice(last,m.index));last=re.lastIndex;
+    if(m[1]){out+='<span class="py-c">'+esc(m[1])+'</span>';prev=''}
+    else if(m[2]){out+='<span class="py-s">'+esc(m[2])+'</span>';prev=''}
+    else{const w=m[3];
+      if(prev==='def'||prev==='class')out+='<span class="py-d">'+esc(w)+'</span>';
+      else if(PY_KW.has(w))out+='<span class="py-k">'+w+'</span>';
+      else if(PY_BI.has(w)&&src[m.index-1]!=='.')out+='<span class="py-b">'+w+'</span>';
+      else out+=esc(w);
+      prev=PY_KW.has(w)?w:''}}
+  return out+esc(src.slice(last))}
+function paintCode(t,text,keepCaret){const off=keepCaret?caretOffset(t):0;t.innerHTML=pyHighlight(text)+(text.endsWith('\n')?'<br>':'');if(keepCaret)setCaret(t,off)}
 let PTO=false;try{const d=document.createElement('div');d.contentEditable='plaintext-only';PTO=d.contentEditable==='plaintext-only'}catch(e){}
 
 /* ================= write queue ================= */
@@ -1120,7 +1145,7 @@ const EDITOR_PROTO={
         body.append(b.icon?h('button',{class:'mk-callout',tabindex:'-1',title:ro?null:'Change icon',disabled:ro,onclick:pick},b.icon)
           :(ro?null:h('button',{class:'mk-callout empty',tabindex:'-1',title:'Add an icon',onclick:pick},ic('smile'))))}
       const t=h('div',{class:'blk-text',contenteditable:ro?'false':(b.type==='code'&&PTO?'plaintext-only':'true'),spellcheck:b.type==='code'?'false':'true','data-ph':PH[b.type]||'',role:'textbox','aria-multiline':'true'});
-      if(b.type==='code'){t.textContent=b.text||'';if((b.text||'').endsWith('\n'))t.append(document.createElement('br'))}else t.innerHTML=sanitize(b.text||'');
+      if(b.type==='code')paintCode(t,b.text||'',false);else t.innerHTML=sanitize(b.text||'');
       if(b.type==='callout'){const kids=h('div',{class:'co-kids'});const hasKids=Array.isArray(b.kids)&&b.kids.length>0;body.append(h('div',{class:'co-main'+(hasKids?' has-kids':'')},t,kids));if(Array.isArray(b.kids)&&b.kids.length)this.fill(kids,b.kids)}
       else body.append(t)}
     el.append(body);return el},
@@ -1158,7 +1183,7 @@ const EDITOR_PROTO={
     b.type=type;if(type==='todo'&&b.checked==null)b.checked=false;if(type==='toggle'&&b.open==null)b.open=true;if(type==='callout'&&b.icon==null)b.icon='💡'},
   syncEl(t){const id=t.closest('.blk').dataset.id;const b=this.get(id);if(!b)return null;b.text=b.type==='code'?codeText(t):sanitize(t.innerHTML);return b},
   onInput(e){const t=e.target.closest&&e.target.closest('.blk-text');if(!t)return;const id=t.closest('.blk').dataset.id;const b=this.get(id);if(!b)return;
-    if(b.type==='code'){b.text=codeText(t);this.save();return}
+    if(b.type==='code'){b.text=codeText(t);if(!e.isComposing)paintCode(t,b.text,true);this.save();return}
     if(t.innerHTML==='<br>')t.innerHTML='';
     if(e.inputType==='insertText'&&e.data===' '&&this.tryShortcut(t,b))return;
     if(e.inputType==='insertText'&&(e.data==='-'||e.data==='`')&&this.tryLiteral(t,b))return;
@@ -1180,6 +1205,7 @@ const EDITOR_PROTO={
     const mod=e.metaKey||e.ctrlKey;const k=e.key;
     if(mod&&k.toLowerCase()==='k'){const sel=getSelection();if(sel&&!sel.isCollapsed&&b.type!=='code'){e.preventDefault();e.stopPropagation();Fmt.link()}return}
     if(mod&&k.toLowerCase()==='e'&&b.type!=='code'){e.preventDefault();Fmt.code();return}
+    if(mod&&!e.shiftKey&&k.toLowerCase()==='u'){e.preventDefault();if(b.type!=='code'){document.execCommand('underline');Fmt.sync()}return}
     if(mod&&e.shiftKey&&k.toLowerCase()==='s'&&b.type!=='code'){e.preventDefault();document.execCommand('strikeThrough');return}
     if(mod&&k==='Enter'&&b.type==='todo'){e.preventDefault();b.checked=!b.checked;this.save(0);const off=caretOffset(t);this.render({id,pos:off});return}
     if(k==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();this.enter(t,b);return}
@@ -1195,8 +1221,7 @@ const EDITOR_PROTO={
   enter(t,b){
     if(b.type==='code'){const sel=getSelection();const r=sel.getRangeAt(0);r.deleteContents();const nl=document.createTextNode('\n');r.insertNode(nl);
       const after=document.createRange();after.setStartAfter(nl);after.collapse(true);sel.removeAllRanges();sel.addRange(after);
-      if(!nl.nextSibling||(nl.nextSibling.nodeType===3&&!nl.nextSibling.data&&!nl.nextSibling.nextSibling))t.append(document.createElement('br'));
-      b.text=codeText(t);this.save();return}
+      b.text=codeText(t);paintCode(t,b.text,true);this.save();return}
     const {before,after}=splitAtCaret(t);const listy=LISTY.has(b.type);
     const bT=htmlText(before).trim(),aT=htmlText(after).trim();
     if(b.type==='callout'){b.text=sanitize(before);const nb=newBlock('p');nb.text=sanitize(after);b.kids=[nb,...(Array.isArray(b.kids)?b.kids:[])];this.save(0);this.render({id:nb.id,pos:0});return}
@@ -1376,7 +1401,7 @@ const Fmt={el:null,range:null,
   check(){const sel=getSelection();if(!sel||!sel.rangeCount||sel.isCollapsed||S.readOnly){this.hide();return}const r=sel.getRangeAt(0);const n=r.commonAncestorContainer;const el=(n.nodeType===1?n:n.parentElement);const t=el&&el.closest('.blk-text');
     if(!t||t.closest('.blk[data-type="code"]')){this.hide();return}this.show(r)},
   show(r){if(!this.el){const B=(label,title,fn,style)=>h('button',{title,style,onmousedown:e=>{e.preventDefault();fn()}},label);
-      this.el=h('div',{class:'fmt',role:'toolbar','aria-label':'Text formatting'},B('B','Bold',()=>this.cmd('bold'),'font-weight:800'),B('I','Italic',()=>this.cmd('italic'),'font-style:italic;font-family:Georgia,serif'),
+      this.el=h('div',{class:'fmt',role:'toolbar','aria-label':'Text formatting'},B('B','Bold',()=>this.cmd('bold'),'font-weight:800'),B('I','Italic',()=>this.cmd('italic'),'font-style:italic;font-family:Georgia,serif'),B('U','Underline',()=>this.cmd('underline'),'text-decoration:underline;text-underline-offset:3px'),
         B('S','Strikethrough',()=>this.cmd('strikeThrough'),'text-decoration:line-through'),B('<>','Inline code',()=>this.code(),'font-family:var(--f-mono);font-size:12px'),B('Link','Link',()=>this.link()))}
     if(!this.el.isConnected)$('#layer').append(this.el);const rect=r.getBoundingClientRect();const w=this.el.offsetWidth,ht=this.el.offsetHeight;
     let x=rect.left+rect.width/2-w/2;x=Math.max(8,Math.min(x,innerWidth-8-w));let y=rect.top-ht-8;if(y<8)y=rect.bottom+8;this.el.style.left=x+'px';this.el.style.top=y+'px'},
@@ -1886,7 +1911,7 @@ async function exportAll(){const data={workspace:S.meta,exportedAt:new Date().to
   if(S.downloads){try{await S.downloads.save({filename:name,data:json});toast('Export saved');return}catch(e){if(e&&e.code==='declined')return}}
   try{await navigator.clipboard.writeText(json);toast('Download is not available here, so the export was copied to your clipboard as JSON.')}catch(e){toast('Export is not available in this view.','error')}}
 function openShortcuts(){const mod=IS_MAC?'⌘':'Ctrl';const rows=[[mod+' K','Search'],[mod+' \\','Show or hide the sidebar'],['/','Insert a block'],['# / ## / ###','Headings'],['- or *','Bulleted list'],['1.','Numbered list'],['[]','To-do'],['>>','Toggle'],['>','Quote'],['!','Callout'],['```','Code block'],['---','Divider'],
-  ['Tab / Shift Tab','Indent or outdent'],[mod+' Enter','Tick a to-do'],[mod+' B / I','Bold, italic'],[mod+' E','Inline code'],[mod+' K (with text selected)','Add a link'],['Shift Enter','Line break inside a block'],['Drag a block to another block’s side','Make columns'],['Drag the gap between columns','Resize columns'],['Drag the page edge','Change the page width'],['/ Database – inline','A table inside the page'],['/ Linked view','Show an existing database on the page']];
+  ['Tab / Shift Tab','Indent or outdent'],[mod+' Enter','Tick a to-do'],[mod+' B / I / U','Bold, italic, underline'],[mod+' E','Inline code'],[mod+' K (with text selected)','Add a link'],['Shift Enter','Line break inside a block'],['Drag a block to another block’s side','Make columns'],['Drag the gap between columns','Resize columns'],['Drag the page edge','Change the page width'],['/ Database – inline','A table inside the page'],['/ Linked view','Show an existing database on the page']];
   openModal('Keyboard shortcuts',h('div',{class:'modal-b'},h('table',{style:'width:100%;border-collapse:collapse'},h('tbody',null,rows.map(([k,d])=>h('tr',{style:'border-bottom:1px solid var(--line-2)'},h('td',{style:'padding:8px 0;font-family:var(--f-mono);font-size:13px;white-space:nowrap;padding-right:16px',text:k}),h('td',{style:'padding:8px 0;color:var(--ink-2)',text:d})))))))}
 
 /* ================= wiring ================= */
